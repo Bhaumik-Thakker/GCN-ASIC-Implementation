@@ -1,0 +1,142 @@
+module GCN_TEB
+  #(parameter FEATURE_COLS = 96,
+    parameter WEIGHT_ROWS = 96,
+    parameter FEATURE_ROWS = 6,
+    parameter WEIGHT_COLS = 3,
+    parameter FEATURE_WIDTH = 5,
+    parameter WEIGHT_WIDTH = 5,
+    parameter DOT_PROD_WIDTH = 16,
+    parameter ADDRESS_WIDTH = 13,
+    parameter COUNTER_WEIGHT_WIDTH = $clog2(WEIGHT_COLS),
+    parameter COUNTER_FEATURE_WIDTH = $clog2(FEATURE_ROWS),
+    parameter MAX_ADDRESS_WIDTH = 2,
+    parameter NUM_OF_NODES = 6,			 
+    parameter COO_NUM_OF_COLS = 6,			
+    parameter COO_NUM_OF_ROWS = 2,			
+    parameter COO_BW = $clog2(COO_NUM_OF_COLS),
+    parameter HALF_CLOCK_CYCLE = 5	
+)
+();
+
+
+  string data_dir;
+  string feature_filename;
+  string weight_filename;
+  string coo_filename;
+  string gold_address_filename;
+
+  initial begin
+    if (!$value$plusargs("DATA_DIR=%s", data_dir)) begin
+      data_dir = "data";
+    end
+    feature_filename      = {data_dir, "/feature_data.txt"};
+    weight_filename       = {data_dir, "/weight_data.txt"};
+    coo_filename          = {data_dir, "/coo_data.txt"};
+    gold_address_filename = {data_dir, "/gold_address.txt"};
+  end
+
+  logic read_enable;
+  logic done_trans;
+  logic done_comb;
+  logic write_enable;
+  logic [2:0] read_row;
+  logic [DOT_PROD_WIDTH-1:0] wm_fm_dot_product;
+  logic [WEIGHT_WIDTH-1:0] input_data [0:WEIGHT_ROWS-1];
+
+  logic [ADDRESS_WIDTH-1:0] read_addres_mem;
+  logic [FEATURE_WIDTH - 1:0] feature_matrix_mem [0:FEATURE_ROWS - 1][0:FEATURE_COLS - 1];
+  logic [WEIGHT_WIDTH - 1:0] weight_matrix_mem [0:WEIGHT_COLS - 1][0:WEIGHT_ROWS - 1];
+  logic [COO_BW - 1:0] coo_matrix_mem [0:COO_NUM_OF_ROWS - 1][0:COO_NUM_OF_COLS - 1];
+  //logic [COO_BW - 1:0] coo_in [0:1];
+  logic [COO_BW - 1:0] col_address;
+
+  //logic [DOT_PROD_WIDTH - 1:0] fm_wm_row_out [0:FEATURE_ROWS-1][0:WEIGHT_COLS-1];
+  logic [DOT_PROD_WIDTH - 1:0] fm_wm_adj_out [0:WEIGHT_COLS-1];
+  //logic [MAX_ADDRESS_WIDTH - 1:0] max_addi_answer_final [0:FEATURE_ROWS - 1];
+  //logic [MAX_ADDRESS_WIDTH - 1:0] gold_output_addr [0:FEATURE_ROWS - 1];
+  logic [DOT_PROD_WIDTH - 1:0] fm_wm_out [0:WEIGHT_COLS-1];
+
+
+  initial $readmemb(feature_filename, feature_matrix_mem);
+  initial $readmemb(weight_filename, weight_matrix_mem);
+  initial $readmemb(coo_filename, coo_matrix_mem);
+//  initial $readmemb(gold_address_filename, gold_output_addr);
+
+
+always @(read_addres_mem or read_enable) begin
+	if (read_enable) begin
+		if(read_addres_mem >= 10'b10_0000_0000) begin
+			input_data = feature_matrix_mem[read_addres_mem - 10'b10_0000_0000];
+		end 
+		else begin
+			input_data = weight_matrix_mem[read_addres_mem];
+		end 
+	end
+end 
+
+	logic clk;		// Clock
+	logic rst;		// Dut Reset
+	logic start;		// Start Signal: This is asserted in the testbench
+	logic done;		// All the Calculations are done
+
+	// Clock Generator
+        initial begin
+            clk <= '0;
+            forever #(HALF_CLOCK_CYCLE) clk <= ~clk;
+        end
+
+
+
+	initial begin 
+		#100000;
+		$display("Simulation Time Expired");
+
+		$finish;
+	end 
+
+	initial begin
+		start = 1'b0;
+		rst = 1'b1;
+		// Reset the DUT
+		repeat(3) begin
+			#HALF_CLOCK_CYCLE;
+			rst = ~rst;
+		end
+                start = 1'b1;
+
+		wait (done === 1'b1);
+		#21
+		
+		//check_for_correct_address(max_addi_answer_final, gold_output_addr);
+		$finish;
+ 	end
+
+
+Transformation_Block Transformation_Block_DUT
+(
+        .clk(clk),
+        .reset(rst),
+        .start(start),
+        .data_in(input_data),
+        .read_address(read_addres_mem),
+        .enable_read(read_enable),
+        .read_row(read_row),
+        .done_trans(done_trans),
+        .FM_WM_Row(fm_wm_out)
+); 
+
+
+Combination_block combination_block_dut
+(
+	.clk(clk),
+	.reset(rst),
+	.done_trans(done_trans),
+	.coo_in({coo_matrix_mem[0][col_address], coo_matrix_mem[1][col_address]}),
+	.FM_WM_Row(fm_wm_out),
+        .read_row(read_row),
+
+    .coo_address(col_address),
+    .fm_wm_adj_out(fm_wm_adj_out),    // This will connect to Argmax input
+	.done_comb(done)
+);
+endmodule 
