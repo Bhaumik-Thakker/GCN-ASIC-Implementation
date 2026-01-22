@@ -13,11 +13,10 @@ This repository contains artifacts for a **Graph Convolution Network (GCN)** har
 - **RTL/** — SystemVerilog RTL for the GCN design (top-level + sub-blocks)
 - **Verify/** — testbenches and simulation evidence screenshots
 - **DC/** — synthesis outputs (netlist / SDC / reports)
-- **DC_Report/** — (optional) extra synthesis timing reports / corner summaries
 - **Innovus/** — place-and-route outputs (APR netlist, GDS)
 - **Innovus_Reports/** — P&R reports / summaries (timing, clock tree, power, etc.)
 - **Virtuoso_layout/** — layout + DRC/LVS evidence (screenshots and report files)
-- **APR_Layout/** — (optional) final Innovus layout screenshot(s)
+- **APR_Layout/** — final Innovus layout screenshot(s)
 - **Documents/** — milestone reports (PDF)
 
 ---
